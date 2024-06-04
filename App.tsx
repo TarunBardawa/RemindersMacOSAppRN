@@ -1,4 +1,4 @@
-import React, {useCallback, useState} from 'react';
+import React, {useCallback, useEffect, useState} from 'react';
 import {
   FlatList,
   ListRenderItem,
@@ -9,6 +9,7 @@ import {
   View,
 } from 'react-native';
 import { Image } from 'react-native-macos';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 type Reminder = {
   title: string;
@@ -31,17 +32,28 @@ const initialReminders: Reminder[] = [
 ];
 
 function App(): JSX.Element {
-  const [reminders, setReminders] = useState<Reminder[]>(initialReminders);
+  const [reminders, setReminders] = useState<Reminder[]>([]);
   const [newReminder, setNewReminder] = useState<string>('');
 
   const sortedReminders = [...reminders];
   sortedReminders.sort((a, b) => (a.completed && !b.completed) ? 1 : -1);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      const remis = await getData();
+      setReminders(remis || []);
+    };
+    if (reminders.length === 0) {
+      fetchData();
+    }
+  }, [])
 
   const toggleCompleted = useCallback((item: Reminder) => {
     const index = reminders.findIndex(itm => itm.title === item.title);
     const newReminders = [...reminders];
     newReminders[index].completed = !newReminders[index].completed;
     setReminders(newReminders);
+    storeData(newReminders);
   }, [reminders]);
 
   const addNewReminder = useCallback(() => {
@@ -50,8 +62,27 @@ function App(): JSX.Element {
     }
     const newReminders = [...reminders, {title: newReminder.trim(), completed: false}];
     setReminders(newReminders);
+    storeData(newReminders);
     setNewReminder('');
   }, [newReminder, reminders]);
+
+  const storeData = useCallback(async (value: Reminder[]) => {
+    try {
+      const jsonValue = JSON.stringify(value);
+      await AsyncStorage.setItem('my-key', jsonValue);
+    } catch (e) {
+      console.log('error saving: ', e);
+    }
+  }, []);
+
+  const getData = useCallback(async () => {
+    try {
+      const jsonValue = await AsyncStorage.getItem('my-key');
+      return jsonValue != null ? JSON.parse(jsonValue) : null;
+    } catch (e) {
+      // error reading value
+    }
+  }, []);
 
   const renderItem: ListRenderItem<Reminder> = ({item, index}) => {
     return (
